@@ -23,9 +23,6 @@ On many multi-lane roads, traffic often merges into a single lane at intersectio
 **Repo:**  
 https://github.com/nudataviz/project-fall25-Dianna3
 
-**Repo Access:**  
-The instructor will verify that the team member(Dianna E) has full repository access.  
-
 ---
 
 ## Data
