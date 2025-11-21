@@ -29,15 +29,16 @@ const topY = 60;
 const botY = 160;
 const midY = (topY + botY) / 2;
 
-const SPEED_MIN = 0.3;
-const SPEED_MAX = 1.5;
+let SPEED_MIN = 0.3;
+let SPEED_MAX = 1.5;
 
-const svg = d3.create("svg")
+const container = d3.create("div");
+display(container.node());
+
+const svg = container.append("svg")
   .attr("width", W)
   .attr("height", H)
   .style("background", "#f8fafc");
-
-display(svg.node());
 
 svg.append("line")
   .attr("x1", 20).attr("x2", W - 20)
@@ -80,29 +81,67 @@ let nextId = 1;
 let cars = [];
 const g = svg.append("g");
 
-function spawn(lane, baseDelay) {
-  if (baseDelay === undefined) {
-    baseDelay = 0;
-  }
+const controls = container.append("div")
+  .style("margin-top", "8px")
+  .style("font", "12px system-ui, sans-serif");
 
+const rowMin = controls.append("div").style("margin-bottom", "4px");
+rowMin.append("span")
+  .text("Min speed: ")
+  .style("margin-right", "4px");
+
+const minSlider = rowMin.append("input")
+  .attr("type", "range")
+  .attr("min", 0.05)
+  .attr("max", 1.5)
+  .attr("step", 0.05)
+  .attr("value", SPEED_MIN);
+
+const minLabel = rowMin.append("span").text(SPEED_MIN.toFixed(2));
+
+minSlider.on("input", function() {
+  const v = Number(this.value);
+  SPEED_MIN = v;
+  minLabel.text(v.toFixed(2));
+});
+
+const rowMax = controls.append("div");
+rowMax.append("span")
+  .text("Max speed: ")
+  .style("margin-right", "4px");
+
+const maxSlider = rowMax.append("input")
+  .attr("type", "range")
+  .attr("min", 0.3)
+  .attr("max", 3.0)
+  .attr("step", 0.05)
+  .attr("value", SPEED_MAX);
+
+const maxLabel = rowMax.append("span").text(SPEED_MAX.toFixed(2));
+
+maxSlider.on("input", function() {
+  const v = Number(this.value);
+  SPEED_MAX = v;
+  maxLabel.text(v.toFixed(2));
+});
+
+function spawn(lane, baseDelay) {
+  if (baseDelay === undefined) baseDelay = 0;
   const jitter = 400 + Math.random() * 800;
   const x0 = -(carW + carGap) - Math.random() * 120;
-
   let y;
   if (lane === "top") {
     y = Y_TOP;
   } else {
     y = Y_BOT;
   }
-
   let color;
   if (lane === "top") {
     color = "#4F8EF7";
   } else {
     color = "#F4A261";
   }
-
-  cars.push({
+  const car = {
     id: nextId,
     x: x0,
     y: y,
@@ -111,8 +150,9 @@ function spawn(lane, baseDelay) {
     color: color,
     merging: false,
     targetY: null
-  });
+  };
   nextId = nextId + 1;
+  cars.push(car);
 }
 
 for (let i = 0; i < MAX_TOP; i++) {
@@ -133,21 +173,34 @@ function gapFreeAtMerge(bottomCars) {
   return true;
 }
 
-d3.timer(() => {
+function sortByXDesc(list) {
+  for (let i = 0; i < list.length; i++) {
+    for (let j = i + 1; j < list.length; j++) {
+      if (list[j].x > list[i].x) {
+        const temp = list[i];
+        list[i] = list[j];
+        list[j] = temp;
+      }
+    }
+  }
+}
+
+d3.timer(function() {
   const now = performance.now();
 
-  const topWaiting = cars.filter(function(c){
-    return c.lane === "top" && c.merging === false;
-  }).sort(function(a,b){
-    return b.x - a.x;
-  });
+  const topWaiting = [];
+  for (let i = 0; i < cars.length; i++) {
+    const c = cars[i];
+    if (c.lane === "top" && c.merging === false) topWaiting.push(c);
+  }
+
+  sortByXDesc(topWaiting);
 
   for (let i = 0; i < topWaiting.length; i++) {
     const c = topWaiting[i];
     if (now < c.delay) {
       continue;
     }
-
     let leadX;
     if (i === 0) {
       leadX = STOP_X;
@@ -158,10 +211,8 @@ d3.timer(() => {
         leadX = STOP_X;
       }
     }
-
     const distToLead = leadX - c.x;
     const distBasedSpeed = distToLead * 0.5;
-
     let speed = vBase;
     if (distBasedSpeed < speed) {
       speed = distBasedSpeed;
@@ -172,50 +223,44 @@ d3.timer(() => {
     if (speed > SPEED_MAX) {
       speed = SPEED_MAX;
     }
-
     const newX = c.x + speed;
-
     if (newX > leadX) {
       c.x = leadX;
     } else {
       c.x = newX;
     }
-
     c.y = Y_TOP;
   }
 
-  const bottomAll = cars.filter(function(c){
-    return c.lane === "bot";
-  }).sort(function(a,b){
-    return b.x - a.x;
-  });
+  const bottomAll = [];
+  for (let i = 0; i < cars.length; i++) {
+    const c = cars[i];
+    if (c.lane === "bot") bottomAll.push(c);
+  }
+
+  sortByXDesc(bottomAll);
 
   for (let i = 0; i < bottomAll.length; i++) {
     const c = bottomAll[i];
     if (now < c.delay) {
       continue;
     }
-
     let speed = vBase;
     if (i > 0) {
       const frontCar = bottomAll[i - 1];
       const distToFront = frontCar.x - c.x;
       const distBasedSpeed = distToFront * 0.5;
-
       if (distBasedSpeed < speed) {
         speed = distBasedSpeed;
       }
     }
-
     if (speed < SPEED_MIN) {
       speed = SPEED_MIN;
     }
     if (speed > SPEED_MAX) {
       speed = SPEED_MAX;
     }
-
     c.x = c.x + speed;
-
     if (i > 0) {
       const frontCar = bottomAll[i - 1];
       const minDist = frontCar.x - MIN_GAP;
@@ -232,9 +277,11 @@ d3.timer(() => {
 
   if (head !== null) {
     const atStop = Math.abs(head.x - STOP_X) < 1e-6;
-    const allBottomCars = cars.filter(function(c){
-      return c.lane === "bot" || c.merging === true;
-    });
+    const allBottomCars = [];
+    for (let i = 0; i < cars.length; i++) {
+      const c = cars[i];
+      if (c.lane === "bot" || c.merging === true) allBottomCars.push(c);
+    }
     if (atStop && gapFreeAtMerge(allBottomCars)) {
       head.merging = true;
       head.targetY = Y_BOT;
@@ -249,10 +296,8 @@ d3.timer(() => {
     if (now < c.delay) {
       continue;
     }
-
     c.x = c.x + vBase;
     const newY = c.y + vMergeY;
-
     if (newY >= c.targetY) {
       c.y = c.targetY;
       c.merging = false;
@@ -263,9 +308,12 @@ d3.timer(() => {
   }
 
   const outX = W + carW;
-  cars = cars.filter(function(c){
-    return c.x <= outX;
-  });
+  const stillIn = [];
+  for (let i = 0; i < cars.length; i++) {
+    const c = cars[i];
+    if (c.x <= outX) stillIn.push(c);
+  }
+  cars = stillIn;
 
   let topCount = 0;
   let botCount = 0;
@@ -306,6 +354,7 @@ d3.timer(() => {
     .attr("x", function(d){ return Math.round(d.x); })
     .attr("y", function(d){ return d.y; });
 });
+
 ```
 
 ---
