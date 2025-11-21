@@ -1,4 +1,4 @@
-# EDA
+# MVP
 
 **Name:** LaneMerge Simulation  
 
@@ -23,54 +23,289 @@ The current figure (implemented in **D3** within Observable Framework) presents 
 This visualization demonstrates smooth, continuous vehicle motion and provides an initial baseline for simulating merging events.
 
 ```js
-import * as d3 from "d3";
+const W = 700;
+const H = 220;
+const topY = 60;
+const botY = 160;
+const midY = (topY + botY) / 2;
 
-const W = 700, H = 220, topY = 60, botY = 160, midY = (topY + botY)/2;
-const svg = d3.create("svg").attr("width", W).attr("height", H).style("background", "lightgrey");
+const SPEED_MIN = 0.3;
+const SPEED_MAX = 1.5;
+
+const svg = d3.create("svg")
+  .attr("width", W)
+  .attr("height", H)
+  .style("background", "#f8fafc");
+
 display(svg.node());
 
-svg.append("line").attr("x1",20).attr("x2",W-20).attr("y1",topY).attr("y2",topY).attr("stroke","gray").attr("stroke-width",4);
-svg.append("line").attr("x1",20).attr("x2",W-20).attr("y1",botY).attr("y2",botY).attr("stroke","gray").attr("stroke-width",4);
-svg.append("line").attr("x1",20).attr("x2",W-20).attr("y1",midY).attr("y2",midY).attr("stroke","gray").attr("stroke-width",2).attr("stroke-dasharray","10,10");
+svg.append("line")
+  .attr("x1", 20).attr("x2", W - 20)
+  .attr("y1", topY).attr("y2", topY)
+  .attr("stroke", "#94a3b8").attr("stroke-width", 4);
 
-const carW = 60, carGap = 15, v = 1.2;
-const carH = (midY - topY) - 10;
+svg.append("line")
+  .attr("x1", 20).attr("x2", W - 20)
+  .attr("y1", botY).attr("y2", botY)
+  .attr("stroke", "#94a3b8").attr("stroke-width", 4);
 
-function makeLane(yTop, laneDelay=0){
-  const y = yTop + 6;
-  const n = 5;
-  const cars = d3.range(n).map(i => ({
-    x: -(i+1)*(carW+carGap),
-    delay: laneDelay + i*800 + Math.random()*800
-}));
-  const rects = svg.selectAll(null)
-    .data(cars)
-    .enter()
-    .append("rect")
-    .attr("x", d => d.x)
-    .attr("y", y)
-    .attr("width", carW)
-    .attr("height", carH)
-    .attr("fill", "yellow")
-    .attr("rx", 3);
-  return {cars, rects};
+svg.append("line")
+  .attr("x1", 20).attr("x2", W - 20)
+  .attr("y1", midY).attr("y2", midY)
+  .attr("stroke", "#cbd5e1").attr("stroke-width", 2)
+  .attr("stroke-dasharray", "10,10");
+
+const mergeX = Math.floor(W * 2 / 3);
+const STOP_X  = mergeX - 60;
+
+svg.append("line")
+  .attr("x1", mergeX).attr("x2", mergeX)
+  .attr("y1", topY - 20).attr("y2", midY + 20)
+  .attr("stroke", "#ef4444").attr("stroke-width", 3);
+
+const carW = 50;
+const carH = 35;
+const carGap = 15;
+const vBase = 1.1;
+const vMergeY = 0.8;
+
+const MIN_GAP = carW + carGap;
+const Y_TOP = topY + 6;
+const Y_BOT = midY + 6;
+
+const MAX_TOP = 10;
+const MAX_BOT = 18;
+
+let nextId = 1;
+let cars = [];
+const g = svg.append("g");
+
+function spawn(lane, baseDelay) {
+  if (baseDelay === undefined) {
+    baseDelay = 0;
+  }
+
+  const jitter = 400 + Math.random() * 800;
+  const x0 = -(carW + carGap) - Math.random() * 120;
+
+  let y;
+  if (lane === "top") {
+    y = Y_TOP;
+  } else {
+    y = Y_BOT;
+  }
+
+  let color;
+  if (lane === "top") {
+    color = "#4F8EF7";
+  } else {
+    color = "#F4A261";
+  }
+
+  cars.push({
+    id: nextId,
+    x: x0,
+    y: y,
+    delay: performance.now() + baseDelay + jitter,
+    lane: lane,
+    color: color,
+    merging: false,
+    targetY: null
+  });
+  nextId = nextId + 1;
 }
 
-const topLane = makeLane(topY, 0);
-const botLane = makeLane(midY, 1200);
+for (let i = 0; i < MAX_TOP; i++) {
+  spawn("top", i * 400);
+}
+for (let i = 0; i < MAX_BOT; i++) {
+  spawn("bot", i * 400 + 800);
+}
 
-
-d3.timer((elapsed) => {
-  for (const lane of [topLane, botLane]) {
-    lane.cars.forEach(d => {
-      if (elapsed < d.delay) return;
-      d.x += v;
-      if (d.x > W) d.x = -carW - carGap;
-    });
-    lane.rects.attr("x", d => d.x);
+function gapFreeAtMerge(bottomCars) {
+  const need = MIN_GAP * 1.1;
+  for (let i = 0; i < bottomCars.length; i++) {
+    const b = bottomCars[i];
+    if (Math.abs(b.x - mergeX) <= need) {
+      return false;
+    }
   }
-});
+  return true;
+}
 
+d3.timer(() => {
+  const now = performance.now();
+
+  const topWaiting = cars.filter(function(c){
+    return c.lane === "top" && c.merging === false;
+  }).sort(function(a,b){
+    return b.x - a.x;
+  });
+
+  for (let i = 0; i < topWaiting.length; i++) {
+    const c = topWaiting[i];
+    if (now < c.delay) {
+      continue;
+    }
+
+    let leadX;
+    if (i === 0) {
+      leadX = STOP_X;
+    } else {
+      const prev = topWaiting[i - 1];
+      leadX = prev.x - MIN_GAP;
+      if (leadX > STOP_X) {
+        leadX = STOP_X;
+      }
+    }
+
+    const distToLead = leadX - c.x;
+    const distBasedSpeed = distToLead * 0.5;
+
+    let speed = vBase;
+    if (distBasedSpeed < speed) {
+      speed = distBasedSpeed;
+    }
+    if (speed < SPEED_MIN) {
+      speed = SPEED_MIN;
+    }
+    if (speed > SPEED_MAX) {
+      speed = SPEED_MAX;
+    }
+
+    const newX = c.x + speed;
+
+    if (newX > leadX) {
+      c.x = leadX;
+    } else {
+      c.x = newX;
+    }
+
+    c.y = Y_TOP;
+  }
+
+  const bottomAll = cars.filter(function(c){
+    return c.lane === "bot";
+  }).sort(function(a,b){
+    return b.x - a.x;
+  });
+
+  for (let i = 0; i < bottomAll.length; i++) {
+    const c = bottomAll[i];
+    if (now < c.delay) {
+      continue;
+    }
+
+    let speed = vBase;
+    if (i > 0) {
+      const frontCar = bottomAll[i - 1];
+      const distToFront = frontCar.x - c.x;
+      const distBasedSpeed = distToFront * 0.5;
+
+      if (distBasedSpeed < speed) {
+        speed = distBasedSpeed;
+      }
+    }
+
+    if (speed < SPEED_MIN) {
+      speed = SPEED_MIN;
+    }
+    if (speed > SPEED_MAX) {
+      speed = SPEED_MAX;
+    }
+
+    c.x = c.x + speed;
+
+    if (i > 0) {
+      const frontCar = bottomAll[i - 1];
+      const minDist = frontCar.x - MIN_GAP;
+      if (c.x > minDist) {
+        c.x = minDist;
+      }
+    }
+  }
+
+  let head = null;
+  if (topWaiting.length > 0) {
+    head = topWaiting[0];
+  }
+
+  if (head !== null) {
+    const atStop = Math.abs(head.x - STOP_X) < 1e-6;
+    const allBottomCars = cars.filter(function(c){
+      return c.lane === "bot" || c.merging === true;
+    });
+    if (atStop && gapFreeAtMerge(allBottomCars)) {
+      head.merging = true;
+      head.targetY = Y_BOT;
+    }
+  }
+
+  for (let i = 0; i < cars.length; i++) {
+    const c = cars[i];
+    if (c.merging === false) {
+      continue;
+    }
+    if (now < c.delay) {
+      continue;
+    }
+
+    c.x = c.x + vBase;
+    const newY = c.y + vMergeY;
+
+    if (newY >= c.targetY) {
+      c.y = c.targetY;
+      c.merging = false;
+      c.lane = "bot";
+    } else {
+      c.y = newY;
+    }
+  }
+
+  const outX = W + carW;
+  cars = cars.filter(function(c){
+    return c.x <= outX;
+  });
+
+  let topCount = 0;
+  let botCount = 0;
+  for (let i = 0; i < cars.length; i++) {
+    const c = cars[i];
+    if (c.lane === "top" && c.merging === false) {
+      topCount = topCount + 1;
+    }
+    if (c.lane === "bot") {
+      botCount = botCount + 1;
+    }
+  }
+
+  while (topCount < MAX_TOP) {
+    spawn("top");
+    topCount = topCount + 1;
+  }
+  while (botCount < MAX_BOT) {
+    spawn("bot", 600);
+    botCount = botCount + 1;
+  }
+
+  const sel = g.selectAll("rect").data(cars, function(d){ return d.id; });
+
+  sel.exit().remove();
+
+  sel.enter()
+    .append("rect")
+    .attr("width", carW)
+    .attr("height", carH)
+    .attr("rx", 4)
+    .attr("fill", function(d){ return d.color; })
+    .attr("x", function(d){ return Math.round(d.x); })
+    .attr("y", function(d){ return d.y; });
+
+  sel
+    .attr("fill", function(d){ return d.color; })
+    .attr("x", function(d){ return Math.round(d.x); })
+    .attr("y", function(d){ return d.y; });
+});
 ```
 
 ---
