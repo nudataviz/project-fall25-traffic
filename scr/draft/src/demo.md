@@ -1,4 +1,4 @@
-# MVP
+# demo
 
 **Name:** LaneMerge Simulation  
 
@@ -23,14 +23,19 @@ The current figure (implemented in **D3** within Observable Framework) presents 
 This visualization demonstrates smooth, continuous vehicle motion and provides an initial baseline for simulating merging events.
 
 ```js echo
+const SPEED_MIN = Inputs.range([0.5, 1.5], { step: 0.05, value: 0.3 });
+const SPEED_MAX = Inputs.range([0.3, 3.0], { step: 0.05, value: 1.5 });
+
+display(SPEED_MIN)
+display(SPEED_MAX)
+```
+
+```js echo
 const W = 700;
 const H = 220;
 const topY = 60;
 const botY = 160;
 const midY = (topY + botY) / 2;
-
-let SPEED_MIN = 0.3;
-let SPEED_MAX = 1.5;
 
 const container = d3.create("div");
 display(container.node());
@@ -80,50 +85,6 @@ const MAX_BOT = 18;
 let nextId = 1;
 let cars = [];
 const g = svg.append("g");
-
-const controls = container.append("div")
-  .style("margin-top", "8px")
-  .style("font", "12px system-ui, sans-serif");
-
-const rowMin = controls.append("div").style("margin-bottom", "4px");
-rowMin.append("span")
-  .text("Min speed: ")
-  .style("margin-right", "4px");
-
-const minSlider = rowMin.append("input")
-  .attr("type", "range")
-  .attr("min", 0.05)
-  .attr("max", 1.5)
-  .attr("step", 0.05)
-  .attr("value", SPEED_MIN);
-
-const minLabel = rowMin.append("span").text(SPEED_MIN.toFixed(2));
-
-minSlider.on("input", function() {
-  const v = Number(this.value);
-  SPEED_MIN = v;
-  minLabel.text(v.toFixed(2));
-});
-
-const rowMax = controls.append("div");
-rowMax.append("span")
-  .text("Max speed: ")
-  .style("margin-right", "4px");
-
-const maxSlider = rowMax.append("input")
-  .attr("type", "range")
-  .attr("min", 0.3)
-  .attr("max", 3.0)
-  .attr("step", 0.05)
-  .attr("value", SPEED_MAX);
-
-const maxLabel = rowMax.append("span").text(SPEED_MAX.toFixed(2));
-
-maxSlider.on("input", function() {
-  const v = Number(this.value);
-  SPEED_MAX = v;
-  maxLabel.text(v.toFixed(2));
-});
 
 function spawn(lane, baseDelay) {
   if (baseDelay === undefined) baseDelay = 0;
@@ -217,11 +178,11 @@ d3.timer(function() {
     if (distBasedSpeed < speed) {
       speed = distBasedSpeed;
     }
-    if (speed < SPEED_MIN) {
-      speed = SPEED_MIN;
+    if (speed < SPEED_MIN.value) {
+      speed = SPEED_MIN.value;
     }
-    if (speed > SPEED_MAX) {
-      speed = SPEED_MAX;
+    if (speed > SPEED_MAX.value) {
+      speed = SPEED_MAX.value;
     }
     const newX = c.x + speed;
     if (newX > leadX) {
@@ -254,11 +215,11 @@ d3.timer(function() {
         speed = distBasedSpeed;
       }
     }
-    if (speed < SPEED_MIN) {
-      speed = SPEED_MIN;
+    if (speed < SPEED_MIN.value) {
+      speed = SPEED_MIN.value;
     }
-    if (speed > SPEED_MAX) {
-      speed = SPEED_MAX;
+    if (speed > SPEED_MAX.value) {
+      speed = SPEED_MAX.value;
     }
     c.x = c.x + speed;
     if (i > 0) {
