@@ -61,7 +61,7 @@ const stats2Content = stats2.append("div");
 display(statsDiv.node());
 ```
 
-```js echo
+```js
 const W = 700;
 const H = 220;
 const topY = 60;
