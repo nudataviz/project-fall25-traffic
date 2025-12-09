@@ -1,5 +1,44 @@
-# Animation
+# Lane Merging Before a Traffic Light: Late vs Early Merge
 
+---
+## Story
+
+On many multi-lane roads, two lanes have to merge into a single lane just before a traffic light.  
+Some drivers merge early, while others stay in their lane until the very last moment and cut in near the front.
+
+This mixture of behaviors often leads to:
+- sudden braking,
+- hesitation and confusion,
+- and long queues right before the light.
+
+In this project, I simulate two different strategies:
+
+- 🔴 Late Merge – drivers stay in two lanes almost to the end, then merge near the light.
+- 🟢 Early Merge – drivers are “encouraged” to merge earlier, so a single lane forms before the intersection.
+
+The main question is:
+
+> If drivers merge earlier, do we actually see smoother traffic and less waiting?
+
+---
+
+## Overview
+
+This animation focuses on simple, intuitive driving behavior rather than a full traffic engineering model.
+
+In both scenarios:
+
+- Cars speed up when the road ahead is clear.  
+- Cars slow down when they approach another car or a red light.  
+- Cars in the top lane only merge when there is a safe gap in the bottom lane.  
+- Whenever a car is crawling or stopped, that time is counted as waiting time.
+
+By comparing the two scenarios side by side, under the same traffic flow and the same traffic light,  
+we can visually inspect:
+
+- where queues form,
+- how long cars tend to wait,
+- and how late vs early merging changes the traffic pattern.
 
 ```js
 const SPAWN_RATE = Inputs.range([0.5, 5], { 
@@ -26,6 +65,21 @@ const SPEED_MAX = Inputs.range([0.5, 3.0], {
 const LIGHT_GREEN_TIME = 4;
 const LIGHT_RED_TIME = 3;
 ```
+
+## Statistics Panels
+
+Below are two live statistics panels that summarize what is happening in each scenario:
+
+- The red box tracks the 🔴 Late Merge case.  
+- The green box tracks the 🟢 Early Merge case.
+
+Each panel reports:
+
+- **Passed Through** – how many cars have successfully exited the system.  
+- **Avg Wait Time** – on average, how many seconds each car spent moving slowly or stopped.
+
+These numbers give a quick sense of how much delay drivers experience under each strategy.
+
 
 ```js
 const statsDiv = d3.create("div")
@@ -682,3 +736,13 @@ display(SPAWN_RATE);
 display(SPEED_MIN);
 display(SPEED_MAX);
 ```
+
+## Controls
+
+At the bottom of the page, you can adjust the inputs that feed both scenarios:
+
+- **Traffic Flow (cars/sec)** – how many cars enter per second.  
+- **Minimum Speed / Maximum Speed** – the range of comfortable driving speeds.
+
+Both the 🔴 Late Merge and 🟢 Early Merge animations respond to the **same** slider values,  
+so changing these controls lets you see how each strategy behaves under identical conditions.
